@@ -1,0 +1,32 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  NODE_OPTIONS: '--max-old-space-size=4096'
+
+steps:
+- task: UseNode@1
+  inputs:
+    versionSpec: '18.x'
+
+- script: npm ci
+  displayName: 'Install packages'
+
+# Upload fixture to Azure Blob first (node script)
+- script: |
+    node node-scripts/uploadToBlob.js cypress/fixtures/large-file.bin
+  env:
+    AZURE_STORAGE_ACCOUNT: $(AZURE_STORAGE_ACCOUNT)
+    AZURE_STORAGE_SAS: $(AZURE_STORAGE_SAS)
+  displayName: 'Upload test file to Blob'
+
+- script: npx cypress run --config-file cypress.config.js
+  env:
+    BASE_API_URL: $(BASE_API_URL)
+    DB_URL: $(DB_URL)
+    AZURE_STORAGE_ACCOUNT: $(AZURE_STORAGE_ACCOUNT)
+    AZURE_STORAGE_SAS: $(AZURE_STORAGE_SAS)
+  displayName: 'Run Cypress tests'
