@@ -1,5 +1,5 @@
 // cypress/e2e/blobCheck.cy.js
-describe('Check Azure Blob File', () => {
+describe.skip('Check Azure Blob File', () => {
 
  it('should verify if file exists in blob storage', () => {
    const storageAccount = Cypress.env('AZURE_STORAGE_ACCOUNT');

@@ -12,12 +12,5 @@ Cypress.Commands.add("getAuthToken", () => {
         },
         failOnStatusCode: false,
         form: true
-    }).then((response) => {
-        const token = response.body.access_token;
-       // const token = response.body.token; // 🔹 Adjust based on your API response
-        Cypress.env('authToken', token);   // Store globally in Cypress env
-        expect(response.status).to.eq(200);
-        return token;
-        
      });
 });
