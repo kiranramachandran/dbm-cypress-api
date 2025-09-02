@@ -30,11 +30,10 @@ npx cypress run --env environment=<environment> (dev/staging/prod)
 
 - `cypress/e2e`: Test specs
 - `support/commands.js`: Custom Cypress commands
-- `utils/schemaValidator.js`: JSON Schema validation
 
 ## CI/CD
 
-GitHub Actions workflow is included in `.github/workflows/api-tests.yml`
+GitHub Actions workflow is included in `azure-pipelines.yml`
 
 ## Repo Structure
 ```bash
@@ -46,8 +45,6 @@ cypress-api-framework/
 │  ├─ fixtures/
 │  ├─ support/
 │  │  └─ e2e.js
-│  └─ plugins/
-│     └─ index.js
 ├─ package.json
 ├─ cypress.config.js
 ├─ README.md
