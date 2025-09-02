@@ -1,3 +1,6 @@
+# Ignore fixtures-testdata
+cypress/fixtures/
+
 # Ignore mochawesome JSON reports
 cypress/reports/mochawesome/.jsons/
 

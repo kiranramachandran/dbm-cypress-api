@@ -6,7 +6,7 @@ const { defineConfig } = require('cypress')
 
 module.exports = defineConfig({
   e2e: {
-    baseUrl: process.env.BASE_URL || 'https://api-dev.connectionai.com.au/cxai-ifc-func',
+    baseUrl: process.env.BASE_URL || 'https://api-dev.connectionai.com.au/',
     specPattern: 'cypress/e2e/**/*.cy.js',
     supportFile: 'cypress/support/e2e.js',
     setupNodeEvents(on, config) {
@@ -49,9 +49,16 @@ module.exports = defineConfig({
 
    reporter: 'cypress-mochawesome-reporter',
   reporterOptions: {
-    reportDir: 'cypress/reports/mochawesome',
-    overwrite: false,
-    html: true,
-    json: false
+ reporterEnabled: "spec, mochawesome",
+    mochawesomeReporterOptions: {
+      reportDir: "cypress/reports/mochawesome",
+      reportFilename: "[name]-[status]-[datetime]-[hash]",
+      overwrite: true,
+      html: true,         // generate JSON only during run
+      json: false,          // JSON is later merged -> HTML
+      charts: true,
+      embeddedScreenshots: true,
+      inlineAssets: true
+    }
   }
 })
