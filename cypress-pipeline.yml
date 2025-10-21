@@ -1,0 +1,268 @@
+parameters:
+- name: environment
+  displayName: "Choose test environment"
+  type: string
+  default: dev
+  values:
+  - dev
+  - stg
+
+trigger: none # not on every commit
+schedules:
+  - cron: "0 9 * * *"   # Run at 9 AM UTC daily
+    displayName: "Daily API Regression"
+    branches:
+      include:
+        - main
+    always: true # run even if no changes were pushed
+
+pool:
+  name: 'cxai-eus-global-devops-pool'
+
+variables:
+- name: NODE_VERSION
+  value: '18.16.x'
+
+jobs:
+# DEV job
+- job: Cypress_DEV
+  displayName: "Cypress Tests - DEV"
+  variables:
+  - group: cypress-dev
+  condition: |
+    or(
+      eq( '${{ parameters.environment }}', 'dev'), 
+      eq(variables['Build.Reason'], 'Schedule')
+    )
+  steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '$(NODE_VERSION)'
+    displayName: 'Install Node.js'
+
+  - script: npm ci
+    displayName: 'Install dependencies'
+
+  - script: npm run dev-clean-reports
+    displayName: 'Clean previous reports'
+
+  - script: |
+      echo "Running Cypress DEV"
+      npx cross-env ENV_NAME=dev npx cypress run --reporter mochawesome || true
+    displayName: 'Run Cypress DEV tests'
+    env:
+      AZURE_STORAGE_SAS: $(AZURE_STORAGE_SAS)
+      AZURE_STORAGE_ACCOUNT: $(AZURE_STORAGE_ACCOUNT)
+      AZURE_CONTAINER: $(AZURE_CONTAINER)
+      DB_CLIENT_ID: $(DB_CLIENT_ID)
+      DB_TENANT_ID: $(DB_TENANT_ID)
+      DB_CLIENT_SECRET: $(DB_CLIENT_SECRET)
+      DB_SERVER: $(DB_SERVER)
+      DB_NAME: $(DB_NAME)
+      TOKEN_URL: $(TOKEN_URL)
+      AUTH_CLIENT_ID: $(AUTH_CLIENT_ID)
+      AUTH_CLIENT_SECRET: $(AUTH_CLIENT_SECRET)
+      TOKEN_SCOPE: $(TOKEN_SCOPE)
+      X_API_KEY: $(X_API_KEY)
+      ENV_NAME: $(ENV_NAME)
+
+  - script: |
+      pwd
+      ls -R cypress/reports/dev/mochawesome
+    displayName: 'Debug: Check Mochawesome JSON Files'
+
+  - script: |
+      echo "Setting timestamp..."
+      export TZ="Australia/Brisbane"
+      export REPORT_DATE=$(date +'%d-%b-%Y')
+      echo "Report timestamp: $REPORT_DATE"
+      echo "##vso[task.setvariable variable=REPORT_DATE]$REPORT_DATE"
+      export REPORT_TIME=$(date +'%d-%b-%Y_%H%M_%Z')
+      echo "Report timestamp: $REPORT_TIME"
+      echo "##vso[task.setvariable variable=REPORT_TIME]$REPORT_TIME"
+    displayName: "Set timestamp for report"
+
+  - script: |
+      npx mochawesome-merge "cypress/reports/dev/mochawesome/*.json" -o mochawesome-dev.json
+    displayName: 'Merge Mochawesome JSON Reports'
+
+  - script: |
+      echo "Generating HTML Report with timestamp $(REPORT_TIME)"
+      npx marge mochawesome-dev.json \
+        --reportDir cypress/reports/dev \
+        --inline \
+        --reportFilename "TestResults-Dev-$(REPORT_TIME).html" \
+        --reportTitle "Cypress DEV Report - $(REPORT_TIME)"
+    displayName: 'Generate HTML Report'
+    
+    # Publish Mochawesome HTML report
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: 'cypress/reports/dev'
+      artifactName: 'CypressReport_DEV'
+      publishLocation: 'Container'
+    displayName: 'Publish Cypress report'
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifactName: 'CypressReport_DEV'
+      targetPath: '$(Pipeline.Workspace)/CypressReport_DEV'
+
+  - task: PowerShell@2
+    inputs:
+      targetType: 'inline'
+      script: |
+        $artifactPath = "$(Pipeline.Workspace)/CypressReport_DEV/TestResults-Dev-$(REPORT_TIME).html"
+        $smtpServer = "$(SMTP_SERVER)"
+        $smtpUser   = "$(SMTP_USERNAME)"
+        $smtpPass   = ConvertTo-SecureString "$(SMTP_PASSWORD)" -AsPlainText -Force
+        $cred       = New-Object System.Management.Automation.PSCredential($smtpUser, $smtpPass)
+        $body       = @"
+        <html>
+        <body>
+          <p>Hi Team,</p>
+          <p>Please find the attached HTML test result report.</p>
+          <p>Here is the result of the testing:</p>
+          <p><a href='$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)'>View Pipeline Run</a></p>
+          <p>Regards,<br>Test Automation Team</p>
+        </body>
+        </html>
+        "@
+        $recipients = "vathsala.narayanan@assurity.com.au",`
+        "Kiran.ramachandran@dbmvircon.com"`
+        # $recipients = "Jasmin.Deato@dbmvircon.com",`
+        # "Ammar.khan@dbmvircon.com",`
+        # "Debbie.Sanchez@dbmvircon.com",`
+        # "Jun.Ju@dbmvircon.com"`
+
+        Send-MailMessage `
+          -To $recipients `
+          -From "azure-devops.reports@dbmvircon.com" `
+          -Subject "Cypress Test Report - DEV - $(REPORT_DATE)" `
+          -Body $body `
+          -BodyAsHtml `
+          -Attachments $artifactPath `
+          -SmtpServer $smtpServer `
+          -Port 587 `
+          -UseSsl `
+          -Credential $cred
+
+# STG job
+- job: Cypress_STG
+  displayName: "Cypress Tests - STG"
+  variables:
+  - group: cypress-stg
+  condition: |
+    and(
+      eq( '${{ parameters.environment }}', 'stg'), 
+      eq(variables['Build.Reason'], 'Manual')
+    )
+  steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '$(NODE_VERSION)'
+    displayName: 'Install Node.js'
+
+  - script: npm ci
+    displayName: 'Install dependencies'
+
+  - script: npm run stg-clean-reports
+    displayName: 'Clean previous reports'
+
+  - script: |
+      echo "Running Cypress STG"
+      npx cross-env ENV_NAME=stg npx cypress run --reporter mochawesome || true
+    displayName: 'Run Cypress STG tests'
+    env:
+      AZURE_STORAGE_SAS: $(AZURE_STORAGE_SAS)
+      AZURE_STORAGE_ACCOUNT: $(AZURE_STORAGE_ACCOUNT)
+      AZURE_CONTAINER: $(AZURE_CONTAINER)
+      DB_CLIENT_ID: $(DB_CLIENT_ID)
+      DB_TENANT_ID: $(DB_TENANT_ID)
+      DB_CLIENT_SECRET: $(DB_CLIENT_SECRET)
+      DB_SERVER: $(DB_SERVER)
+      DB_NAME: $(DB_NAME)
+      TOKEN_URL: $(TOKEN_URL)
+      TOKEN_SCOPE: $(TOKEN_SCOPE)
+      AUTH_CLIENT_ID: $(AUTH_CLIENT_ID)
+      AUTH_CLIENT_SECRET: $(AUTH_CLIENT_SECRET)
+      X_API_KEY: $(X_API_KEY)
+      ENV_NAME: $(ENV_NAME)
+
+  - script: |
+      pwd
+      ls -R cypress/reports/stg/mochawesome
+    displayName: 'Debug: Check Mochawesome JSON Files'
+
+  - script: |
+      echo "Setting timestamp..."
+      export TZ="Australia/Brisbane"
+      export REPORT_TIME=$(date +'%d-%b-%Y_%H%M_%Z')
+      echo "Report timestamp: $REPORT_TIME"
+      echo "##vso[task.setvariable variable=REPORT_TIME]$REPORT_TIME"
+    displayName: "Set timestamp for report"
+
+  - script: |
+      npx mochawesome-merge "cypress/reports/stg/mochawesome/*.json" -o mochawesome-stg.json
+    displayName: 'Merge Mochawesome JSON Reports'
+
+  - script: |
+      echo "Generating HTML Report with timestamp $(REPORT_TIME)"
+      npx marge mochawesome-stg.json \
+        --reportDir cypress/reports/stg \
+        --inline \
+        --reportFilename "TestResults-Stg-$(REPORT_TIME).html" \
+        --reportTitle "Cypress STG Report - $(REPORT_TIME)"
+    displayName: 'Generate HTML Report'
+
+    # Publish Mochawesome HTML report
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: 'cypress/reports/stg'
+      artifactName: 'CypressReport-STG'
+      publishLocation: 'Container'
+    displayName: 'Publish Cypress report'
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifactName: 'CypressReport-STG'
+      targetPath: '$(Pipeline.Workspace)/CypressReport-STG'
+
+  - task: PowerShell@2
+    inputs:
+      targetType: 'inline'
+      script: |
+        $artifactPath = "$(Pipeline.Workspace)/CypressReport-STG/TestResults-Stg-$(REPORT_TIME).html"
+        $smtpServer = "$(SMTP_SERVER)"
+        $smtpUser   = "$(SMTP_USERNAME)"
+        $smtpPass   = ConvertTo-SecureString "$(SMTP_PASSWORD)" -AsPlainText -Force
+        $cred       = New-Object System.Management.Automation.PSCredential($smtpUser, $smtpPass)
+        $body       = @"
+        <html>
+        <body>
+          <p>Hi Team,</p>
+          <p>Please find the attached HTML test result report.</p>
+          <p>Here is the result of the testing:</p>
+          <p><a href='$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)'>View Pipeline Run</a></p>
+          <p>Regards,<br>Test Automation Team</p>
+        </body>
+        </html>
+        "@
+        $recipients = "vathsala.narayanan@assurity.com.au",`
+        "Kiran.ramachandran@dbmvircon.com"`
+        # $recipients = "Jasmin.Deato@dbmvircon.com",`
+        # "Ammar.khan@dbmvircon.com",`
+        # "Debbie.Sanchez@dbmvircon.com",`
+        # "Jun.Ju@dbmvircon.com"`
+
+        Send-MailMessage `
+          -To $recipients `
+          -From "azure-devops.reports@dbmvircon.com" `
+          -Subject "Cypress Test Report - STG - $(REPORT_TIME)" `
+          -Body $body `
+          -BodyAsHtml `
+          -Attachments $artifactPath `
+          -SmtpServer $smtpServer `
+          -Port 587 `
+          -UseSsl `
+          -Credential $cred

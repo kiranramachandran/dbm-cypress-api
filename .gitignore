@@ -1,8 +1,11 @@
-# Ignore fixtures-testdata
+# Ignore .vscode
+.vscode
+
+# Ignore test-data in fixtures
 cypress/fixtures/
 
 # Ignore mochawesome JSON reports
-cypress/reports/mochawesome/.jsons/
+cypress/reports/
 
 # Ignore mochawesome screenshots
 cypress/screenshots/
@@ -13,7 +16,6 @@ cypress/videos/
 
 # Logs
 logs
-*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -150,3 +152,11 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# ENV files
+cypress.env.json
+
+# Reporter files
+mochawesome.json
+mochawesome-dev.json
+mochawesome-stg.json
